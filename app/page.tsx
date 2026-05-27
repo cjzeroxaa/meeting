@@ -1828,7 +1828,7 @@ function AuthGate({
             </span>
             AI Meeting Recorder
           </div>
-          <h1>Internal access</h1>
+          <h1>Sign in</h1>
         </div>
 
         <label className="auth-field">

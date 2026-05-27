@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
-  authenticateInternalUser,
+  authenticateAppUser,
   createSessionCookie
 } from "@/lib/server/auth";
 import { asString, isRecord, jsonError, jsonRouteError, readJson } from "@/lib/server/http";
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       return jsonError(400, "invalid_request", "Request body must be JSON.");
     }
 
-    const user = await authenticateInternalUser(asString(body.password));
+    const user = await authenticateAppUser(asString(body.password));
     const response = NextResponse.json({ user });
     response.headers.set("Set-Cookie", createSessionCookie(user));
 

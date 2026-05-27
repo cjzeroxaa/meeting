@@ -33,7 +33,7 @@ require_env OPENAI_API_KEY
 require_env AUDIO_BUCKET_NAME
 require_env GCS_SIGNING_SERVICE_ACCOUNT
 require_env MEETING_AUTH_SECRET
-require_env MEETING_INTERNAL_PASSWORD
+require_env MEETING_APP_PASSWORD
 
 gcloud services enable \
   artifactregistry.googleapis.com \
@@ -109,7 +109,7 @@ ensure_secret() {
 ensure_secret meeting-v2-database-url "${cloud_sql_database_url}"
 ensure_secret meeting-v2-openai-api-key "${OPENAI_API_KEY}"
 ensure_secret meeting-v2-auth-secret "${MEETING_AUTH_SECRET}"
-ensure_secret meeting-v2-internal-password "${MEETING_INTERNAL_PASSWORD}"
+ensure_secret meeting-v2-app-password "${MEETING_APP_PASSWORD}"
 
 gcloud run deploy "${SERVICE_NAME}" \
   --project "${PROJECT_ID}" \
@@ -118,6 +118,6 @@ gcloud run deploy "${SERVICE_NAME}" \
   --source . \
   --service-account "${RUN_SERVICE_ACCOUNT}" \
   --add-cloudsql-instances "${INSTANCE_CONNECTION_NAME}" \
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},AUDIO_BUCKET_NAME=${AUDIO_BUCKET_NAME},GCS_SIGNING_SERVICE_ACCOUNT=${GCS_SIGNING_SERVICE_ACCOUNT},MEETING_INTERNAL_USER_ID=${MEETING_INTERNAL_USER_ID:-internal_user},MEETING_INTERNAL_USER_NAME=${MEETING_INTERNAL_USER_NAME:-Internal User}" \
-  --set-secrets "DATABASE_URL=meeting-v2-database-url:latest,OPENAI_API_KEY=meeting-v2-openai-api-key:latest,MEETING_AUTH_SECRET=meeting-v2-auth-secret:latest,MEETING_INTERNAL_PASSWORD=meeting-v2-internal-password:latest" \
+  --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},AUDIO_BUCKET_NAME=${AUDIO_BUCKET_NAME},GCS_SIGNING_SERVICE_ACCOUNT=${GCS_SIGNING_SERVICE_ACCOUNT},MEETING_APP_USER_ID=${MEETING_APP_USER_ID:-app_user},MEETING_APP_USER_NAME=${MEETING_APP_USER_NAME:-Meeting User}" \
+  --set-secrets "DATABASE_URL=meeting-v2-database-url:latest,OPENAI_API_KEY=meeting-v2-openai-api-key:latest,MEETING_AUTH_SECRET=meeting-v2-auth-secret:latest,MEETING_APP_PASSWORD=meeting-v2-app-password:latest" \
   --allow-unauthenticated

@@ -153,11 +153,11 @@ export async function requireUser(request: NextRequest): Promise<CurrentUser> {
   return user;
 }
 
-export async function authenticateInternalUser(password: string) {
-  const expectedPassword = process.env.MEETING_INTERNAL_PASSWORD?.trim();
+export async function authenticateAppUser(password: string) {
+  const expectedPassword = process.env.MEETING_APP_PASSWORD?.trim();
 
   if (!expectedPassword || !getAuthSecret()) {
-    throw new AuthError("Internal password authentication is not configured.");
+    throw new AuthError("Password authentication is not configured.");
   }
 
   if (!safeEqual(password, expectedPassword)) {
@@ -165,9 +165,9 @@ export async function authenticateInternalUser(password: string) {
   }
 
   const user: CurrentUser = {
-    id: process.env.MEETING_INTERNAL_USER_ID?.trim() || "internal_user",
-    email: process.env.MEETING_INTERNAL_USER_EMAIL?.trim() || null,
-    name: process.env.MEETING_INTERNAL_USER_NAME?.trim() || "Internal User"
+    id: process.env.MEETING_APP_USER_ID?.trim() || "app_user",
+    email: process.env.MEETING_APP_USER_EMAIL?.trim() || null,
+    name: process.env.MEETING_APP_USER_NAME?.trim() || "Meeting User"
   };
 
   await upsertUser(user);
