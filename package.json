@@ -1,0 +1,33 @@
+{
+  "name": "ai-meeting-recorder",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -H 127.0.0.1",
+    "build": "next build",
+    "start": "next start -H 0.0.0.0 -p ${PORT:-3000}",
+    "db:migrate": "node scripts/migrate.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "playwright test",
+    "test:agent-browser": "bash scripts/agent-browser-tests.sh"
+  },
+  "dependencies": {
+    "google-auth-library": "^10.6.2",
+    "lucide-react": "latest",
+    "next": "latest",
+    "pg": "^8.21.0",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "overrides": {
+    "postcss": "8.5.15"
+  },
+  "devDependencies": {
+    "@playwright/test": "latest",
+    "@types/node": "latest",
+    "@types/pg": "^8.20.0",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "typescript": "latest"
+  }
+}

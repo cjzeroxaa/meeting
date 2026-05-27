@@ -1,0 +1,7 @@
+.env*
+.next/
+node_modules/
+test-results/
+agent-browser-results/
+playwright-report/
+npm-debug.log*

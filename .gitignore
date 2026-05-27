@@ -1,0 +1,7 @@
+.env*
+!.env.example
+.next/
+node_modules/
+test-results/
+agent-browser-results/
+tsconfig.tsbuildinfo
