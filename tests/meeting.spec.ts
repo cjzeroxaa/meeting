@@ -126,6 +126,53 @@ test("sidebar can be collapsed and expanded", async ({ page }) => {
     .toBe("240px");
 });
 
+test("mobile layout uses a sidebar drawer without search or settings", async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 390, height: 720 });
+  await page.goto("/?e2e=1");
+
+  await expect(page.getByTestId("meeting-search-input")).toHaveCount(0);
+  await expect(page.getByText("Settings")).toHaveCount(0);
+
+  await expect
+    .poll(async () =>
+      page
+        .getByTestId("app-sidebar")
+        .evaluate((element) => element.getBoundingClientRect().right)
+    )
+    .toBeLessThanOrEqual(1);
+
+  await page.getByTestId("mobile-sidebar-button").click();
+
+  await expect
+    .poll(async () =>
+      page
+        .getByTestId("app-sidebar")
+        .evaluate((element) => element.getBoundingClientRect().left)
+    )
+    .toBe(0);
+  await expect(page.getByTestId("sidebar-backdrop")).toBeVisible();
+
+  const openMetrics = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    viewportWidth: window.innerWidth
+  }));
+  expect(openMetrics.scrollWidth).toBeLessThanOrEqual(
+    openMetrics.viewportWidth
+  );
+
+  await page.getByTestId("sidebar-collapse-button").click();
+
+  await expect
+    .poll(async () =>
+      page
+        .getByTestId("app-sidebar")
+        .evaluate((element) => element.getBoundingClientRect().right)
+    )
+    .toBeLessThanOrEqual(1);
+});
+
 test("saved backend meetings autosave notes and transcript corrections", async ({
   page,
   request

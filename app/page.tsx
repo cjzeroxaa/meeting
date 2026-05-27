@@ -9,13 +9,11 @@ import {
   Menu,
   Mic,
   Plus,
-  Search,
-  Settings,
   Square,
   TimerReset,
   X
 } from "lucide-react";
-import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 import { formatDuration, formatMeetingDate, formatTimer } from "@/lib/format";
 import {
   deleteNoteDraft,
@@ -382,7 +380,6 @@ export default function MeetingApp() {
     { id: "default", label: "Built-in Microphone" }
   ]);
   const [selectedDeviceId, setSelectedDeviceId] = useState("default");
-  const [search, setSearch] = useState("");
   const [authRequired, setAuthRequired] = useState(false);
   const [authPassword, setAuthPassword] = useState("");
   const [authError, setAuthError] = useState("");
@@ -428,18 +425,6 @@ export default function MeetingApp() {
   const pendingTranscriptSyncIdsRef = useRef<Set<string>>(new Set());
   const realtimeDebugEventsRef = useRef<RealtimeDebugEvent[]>([]);
 
-  const filteredMeetings = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-
-    if (!needle) {
-      return meetings;
-    }
-
-    return meetings.filter((meeting) =>
-      meeting.title.toLowerCase().includes(needle)
-    );
-  }, [meetings, search]);
-
   const isRecording = currentMeeting?.status === "recording";
   const isSaved = currentMeeting?.status === "saved";
   const transcriptText = segments.map((segment) => segment.text).join("\n");
@@ -470,6 +455,20 @@ export default function MeetingApp() {
       inline: "nearest"
     });
   }, [isRecording, segments]);
+
+  useEffect(() => {
+    const mobileQuery = window.matchMedia("(max-width: 760px)");
+    const syncSidebarForViewport = () => {
+      setIsSidebarOpen(!mobileQuery.matches);
+    };
+
+    syncSidebarForViewport();
+    mobileQuery.addEventListener("change", syncSidebarForViewport);
+
+    return () => {
+      mobileQuery.removeEventListener("change", syncSidebarForViewport);
+    };
+  }, []);
 
   useEffect(() => {
     setDebugRealtimeEnabled(isE2EFlag("debugRealtime"));
@@ -1672,6 +1671,13 @@ export default function MeetingApp() {
       >
         <Menu size={16} aria-hidden="true" />
       </button>
+      <button
+        aria-label="Close sidebar"
+        className="sidebar-backdrop"
+        data-testid="sidebar-backdrop"
+        onClick={() => setIsSidebarOpen(false)}
+        type="button"
+      />
       <aside className="sidebar" data-testid="app-sidebar">
         <div className="sidebar-header">
           <div className="sidebar-brand">
@@ -1701,30 +1707,23 @@ export default function MeetingApp() {
           New meeting
         </button>
 
-        <div className="search-wrap">
-          <Search size={15} aria-hidden="true" />
-          <input
-            aria-label="Search meetings"
-            className="search-input"
-            data-testid="meeting-search-input"
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search"
-            value={search}
-          />
-        </div>
-
         <div className="sidebar-section-title">Recent</div>
         <div className="meeting-list" data-testid="meeting-list">
-          {filteredMeetings.length === 0 ? (
+          {meetings.length === 0 ? (
             <div className="meeting-list-empty">No meetings yet.</div>
           ) : (
-            filteredMeetings.map((meeting) => (
+            meetings.map((meeting) => (
               <button
                 className={`sidebar-item ${
                   currentMeeting?.id === meeting.id ? "active" : ""
                 }`}
                 key={meeting.id}
-                onClick={() => void selectMeeting(meeting)}
+                onClick={() => {
+                  void selectMeeting(meeting);
+                  if (window.matchMedia("(max-width: 760px)").matches) {
+                    setIsSidebarOpen(false);
+                  }
+                }}
                 type="button"
               >
                 <FileText size={15} aria-hidden="true" />
@@ -1733,15 +1732,18 @@ export default function MeetingApp() {
             ))
           )}
         </div>
-
-        <div className="sidebar-section-title">Workspace</div>
-        <div className="sidebar-item" aria-label="Settings">
-          <Settings size={15} aria-hidden="true" />
-          Settings
-        </div>
       </aside>
 
       <header className="mobile-topbar">
+        <button
+          aria-label="Open sidebar"
+          className="mobile-menu-button"
+          data-testid="mobile-sidebar-button"
+          onClick={() => setIsSidebarOpen(true)}
+          type="button"
+        >
+          <Menu size={17} aria-hidden="true" />
+        </button>
         <strong>AI Meeting Recorder</strong>
         <div className="mobile-topbar-actions">
           <button className="button-secondary" onClick={createMeeting} type="button">
