@@ -66,18 +66,38 @@ button:disabled {
   border-right: 1px solid var(--border-subtle);
   background: var(--bg-sidebar);
   padding: 12px;
+  transition: transform 180ms ease;
+}
+
+.app-shell.sidebar-collapsed .sidebar {
+  transform: translateX(-100%);
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .sidebar-brand {
   display: flex;
   align-items: center;
+  flex: 1 1 auto;
   gap: 8px;
+  min-width: 0;
   height: 32px;
-  margin-bottom: 8px;
   padding: 0 8px;
   color: var(--text-primary);
   font-size: 14px;
   font-weight: 650;
+}
+
+.sidebar-brand span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .brand-mark {
@@ -89,6 +109,43 @@ button:disabled {
   border-radius: 6px;
   background: #fff;
   box-shadow: var(--shadow-soft);
+}
+
+.sidebar-icon-button,
+.sidebar-expand-button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 0;
+}
+
+.sidebar-icon-button:hover,
+.sidebar-expand-button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.sidebar-expand-button {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 25;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-soft);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.app-shell.sidebar-collapsed .sidebar-expand-button {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .sidebar-item,
@@ -190,6 +247,11 @@ button:disabled {
   min-height: 100vh;
   margin-left: 240px;
   padding: 48px 32px;
+  transition: margin-left 180ms ease;
+}
+
+.app-shell.sidebar-collapsed .main {
+  margin-left: 0;
 }
 
 .document {
@@ -793,6 +855,10 @@ button:disabled {
     display: none;
   }
 
+  .sidebar-expand-button {
+    display: none;
+  }
+
   .mobile-topbar {
     position: sticky;
     top: 0;
@@ -805,6 +871,12 @@ button:disabled {
     background: rgba(251, 251, 250, 0.96);
     padding: 0 12px;
     backdrop-filter: blur(8px);
+  }
+
+  .mobile-topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .main {

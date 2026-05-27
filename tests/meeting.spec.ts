@@ -66,6 +66,66 @@ test("sidebar meeting titles stay on one line", async ({ page }) => {
   expect(metrics.spanTextOverflow).toBe("ellipsis");
 });
 
+test("sidebar can be collapsed and expanded", async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 700 });
+  await page.goto("/?e2e=1");
+
+  const openMetrics = await page.evaluate(() => {
+    const sidebar = document.querySelector('[data-testid="app-sidebar"]');
+    const main = document.querySelector("main");
+
+    return {
+      sidebarLeft: sidebar?.getBoundingClientRect().left,
+      mainMarginLeft: window.getComputedStyle(main as Element).marginLeft
+    };
+  });
+
+  expect(openMetrics.sidebarLeft).toBe(0);
+  expect(openMetrics.mainMarginLeft).toBe("240px");
+
+  await page.getByTestId("sidebar-collapse-button").click();
+  await expect(page.getByTestId("sidebar-expand-button")).toBeVisible();
+
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const sidebar = document.querySelector('[data-testid="app-sidebar"]');
+        return sidebar?.getBoundingClientRect().right ?? 999;
+      })
+    )
+    .toBeLessThanOrEqual(1);
+
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const main = document.querySelector("main");
+        return window.getComputedStyle(main as Element).marginLeft;
+      })
+    )
+    .toBe("0px");
+
+  await page.getByTestId("sidebar-expand-button").click();
+  await expect(page.getByTestId("sidebar-collapse-button")).toBeVisible();
+
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const sidebar = document.querySelector('[data-testid="app-sidebar"]');
+        return sidebar?.getBoundingClientRect().left ?? -999;
+      })
+    )
+    .toBe(0);
+
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const main = document.querySelector("main");
+        return window.getComputedStyle(main as Element).marginLeft;
+      })
+    )
+    .toBe("240px");
+});
+
 test("saved backend meetings autosave notes and transcript corrections", async ({
   page,
   request

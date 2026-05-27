@@ -6,12 +6,14 @@ import {
   Copy,
   Download,
   FileText,
+  Menu,
   Mic,
   Plus,
   Search,
   Settings,
   Square,
-  TimerReset
+  TimerReset,
+  X
 } from "lucide-react";
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { formatDuration, formatMeetingDate, formatTimer } from "@/lib/format";
@@ -401,6 +403,7 @@ export default function MeetingApp() {
   });
   const [noteSaveStatus, setNoteSaveStatus] = useState("");
   const [debugRealtimeEnabled, setDebugRealtimeEnabled] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [realtimeDebugEvents, setRealtimeDebugEvents] = useState<
     RealtimeDebugEvent[]
   >([]);
@@ -1659,13 +1662,33 @@ export default function MeetingApp() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${isSidebarOpen ? "" : "sidebar-collapsed"}`}>
+      <button
+        aria-label="Open sidebar"
+        className="sidebar-expand-button"
+        data-testid="sidebar-expand-button"
+        onClick={() => setIsSidebarOpen(true)}
+        type="button"
+      >
+        <Menu size={16} aria-hidden="true" />
+      </button>
       <aside className="sidebar" data-testid="app-sidebar">
-        <div className="sidebar-brand">
-          <span className="brand-mark">
-            <FileText size={14} aria-hidden="true" />
-          </span>
-          AI Meeting Recorder
+        <div className="sidebar-header">
+          <div className="sidebar-brand">
+            <span className="brand-mark">
+              <FileText size={14} aria-hidden="true" />
+            </span>
+            <span>AI Meeting Recorder</span>
+          </div>
+          <button
+            aria-label="Collapse sidebar"
+            className="sidebar-icon-button"
+            data-testid="sidebar-collapse-button"
+            onClick={() => setIsSidebarOpen(false)}
+            type="button"
+          >
+            <X size={16} aria-hidden="true" />
+          </button>
         </div>
 
         <button
@@ -1720,10 +1743,12 @@ export default function MeetingApp() {
 
       <header className="mobile-topbar">
         <strong>AI Meeting Recorder</strong>
-        <button className="button-secondary" onClick={createMeeting} type="button">
-          <Plus size={15} aria-hidden="true" />
-          New
-        </button>
+        <div className="mobile-topbar-actions">
+          <button className="button-secondary" onClick={createMeeting} type="button">
+            <Plus size={15} aria-hidden="true" />
+            New
+          </button>
+        </div>
       </header>
 
       <main className="main">
