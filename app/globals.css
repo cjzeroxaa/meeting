@@ -721,7 +721,7 @@ button:disabled {
 .segment-time {
   position: absolute;
   top: 6px;
-  left: -64px;
+  left: -48px;
   color: var(--text-tertiary);
   font-size: 12px;
   font-variant-numeric: tabular-nums;

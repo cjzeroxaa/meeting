@@ -284,6 +284,32 @@ test("transcript reads like document blocks with quiet timestamps", async ({
 
   await page.getByTestId("transcript-segment").first().hover();
 
+  const timestampLayout = await page.evaluate(() => {
+    const documentRect = document
+      .querySelector(".document")
+      ?.getBoundingClientRect();
+    const timestampRect = document
+      .querySelector('[data-testid="transcript-timestamp"]')
+      ?.getBoundingClientRect();
+    const editorRect = document
+      .querySelector(".transcript-lexical-editor")
+      ?.getBoundingClientRect();
+
+    return {
+      documentLeft: documentRect?.left ?? 0,
+      timestampLeft: timestampRect?.left ?? 0,
+      timestampRight: timestampRect?.right ?? 0,
+      editorLeft: editorRect?.left ?? 0
+    };
+  });
+
+  expect(timestampLayout.timestampLeft).toBeGreaterThanOrEqual(
+    timestampLayout.documentLeft
+  );
+  expect(timestampLayout.timestampRight).toBeLessThan(
+    timestampLayout.editorLeft
+  );
+
   await expect
     .poll(async () =>
       Number(
