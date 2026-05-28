@@ -1,6 +1,18 @@
 "use client";
 
 import {
+  $createParagraphNode,
+  $createTextNode,
+  $getRoot,
+  type EditorState
+} from "lexical";
+import { LexicalComposer } from "@lexical/react/LexicalComposer";
+import { ContentEditable } from "@lexical/react/LexicalContentEditable";
+import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
+import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
+import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
+import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
+import {
   AlertTriangle,
   Check,
   Copy,
@@ -13,7 +25,14 @@ import {
   TimerReset,
   X
 } from "lucide-react";
-import { type RefObject, useEffect, useRef, useState } from "react";
+import {
+  type RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import { formatDuration, formatMeetingDate, formatTimer } from "@/lib/format";
 import {
   deleteNoteDraft,
@@ -77,6 +96,16 @@ type NoteFields = {
   notes: string;
 };
 
+type TranscriptBlock = {
+  id: string;
+  segmentIds: string[];
+  startMs?: number;
+  endMs?: number;
+  text: string;
+  isFinal: boolean;
+  isEdited: boolean;
+};
+
 type NoteDocumentState = {
   id: string;
   meetingId: string;
@@ -89,9 +118,20 @@ type NoteDocumentState = {
 };
 
 const EMPTY_NOTE_FIELDS: NoteFields = {
-  summary: "No summary generated yet.",
-  actionItems: "No action items yet.",
+  summary: "",
+  actionItems: "",
   notes: ""
+};
+
+const NOTE_PLACEHOLDERS: Record<keyof NoteFields, string> = {
+  summary: "Click to add summary...",
+  actionItems: "Click to add action items...",
+  notes: "Click to add notes..."
+};
+
+const LEGACY_EMPTY_NOTE_TEXT: Partial<Record<keyof NoteFields, string>> = {
+  summary: "No summary generated yet.",
+  actionItems: "No action items yet."
 };
 
 declare global {
@@ -147,7 +187,10 @@ function isUnauthorized(error: unknown) {
 
 function buildMarkdownTranscript(meeting: StoredMeeting, segments: TranscriptSegment[]) {
   const title = meeting.title.trim() || "Untitled meeting";
-  const transcript = segments.map((segment) => segment.text).join("\n\n");
+  const transcript = segments
+    .map((segment) => segment.text.trim())
+    .filter(Boolean)
+    .join("\n\n");
 
   return `# ${title}\n\n${formatMeetingDate(meeting.startedAt)} · ${formatDuration(
     meeting.durationMs
@@ -212,6 +255,8 @@ function mapBackendSegment(input: {
   startMs?: number | null;
   endMs?: number | null;
   text: string;
+  rawText?: string | null;
+  editedText?: string | null;
   isFinal: boolean;
   createdAt?: string | null;
   updatedAt?: string | null;
@@ -226,6 +271,8 @@ function mapBackendSegment(input: {
     startMs: input.startMs ?? undefined,
     endMs: input.endMs ?? undefined,
     text: input.text,
+    rawText: input.rawText ?? input.text,
+    editedText: input.editedText ?? null,
     isFinal: input.isFinal,
     createdAt: input.createdAt ?? now,
     updatedAt: input.updatedAt ?? now
@@ -284,10 +331,14 @@ function fieldsFromNoteDocument(
 
     if (blockType === "paragraph" && currentField) {
       const text = getNodeText(block).trim();
+      const normalizedText =
+        text === LEGACY_EMPTY_NOTE_TEXT[currentField] ? "" : text;
 
-      if (text) {
+      if (normalizedText) {
         fields[currentField] =
-          fields[currentField] ? `${fields[currentField]}\n${text}` : text;
+          fields[currentField]
+            ? `${fields[currentField]}\n${normalizedText}`
+            : normalizedText;
       }
     }
   }
@@ -344,6 +395,67 @@ function noteFieldsToText(title: string, fields: NoteFields) {
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+function hasEditedSegment(segment: TranscriptSegment) {
+  return segment.editedText !== undefined && segment.editedText !== null;
+}
+
+function shouldMergeIntoTranscriptBlock(
+  block: TranscriptBlock,
+  segment: TranscriptSegment
+) {
+  if (!block.isFinal || !segment.isFinal || block.isEdited || hasEditedSegment(segment)) {
+    return false;
+  }
+
+  if (block.segmentIds.length >= 3 || block.text.length > 280) {
+    return false;
+  }
+
+  if (
+    typeof block.endMs === "number" &&
+    typeof segment.startMs === "number" &&
+    segment.startMs - block.endMs > 20_000
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function buildTranscriptBlocks(segments: TranscriptSegment[]) {
+  const blocks: TranscriptBlock[] = [];
+
+  for (const segment of segments) {
+    const text = segment.text.trim();
+
+    if (!text) {
+      continue;
+    }
+
+    const previous = blocks[blocks.length - 1];
+
+    if (previous && shouldMergeIntoTranscriptBlock(previous, segment)) {
+      previous.segmentIds.push(segment.id);
+      previous.endMs = segment.endMs ?? previous.endMs;
+      previous.text = `${previous.text} ${text}`;
+      previous.isFinal = previous.isFinal && segment.isFinal;
+      continue;
+    }
+
+    blocks.push({
+      id: segment.id,
+      segmentIds: [segment.id],
+      startMs: segment.startMs,
+      endMs: segment.endMs,
+      text,
+      isFinal: segment.isFinal,
+      isEdited: hasEditedSegment(segment)
+    });
+  }
+
+  return blocks;
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -427,7 +539,10 @@ export default function MeetingApp() {
 
   const isRecording = currentMeeting?.status === "recording";
   const isSaved = currentMeeting?.status === "saved";
-  const transcriptText = segments.map((segment) => segment.text).join("\n");
+  const transcriptText = segments
+    .map((segment) => segment.text.trim())
+    .filter(Boolean)
+    .join("\n\n");
 
   useEffect(() => {
     currentMeetingRef.current = currentMeeting;
@@ -691,9 +806,11 @@ export default function MeetingApp() {
           startMs?: number | null;
           endMs?: number | null;
           text: string;
+          rawText?: string | null;
+          editedText?: string | null;
           isFinal: boolean;
           createdAt?: string | null;
-            updatedAt?: string | null;
+          updatedAt?: string | null;
         }>;
         noteDocument: NoteDocumentState;
       }>(`/api/meetings/${meeting.id}`).catch((error) => {
@@ -853,36 +970,65 @@ export default function MeetingApp() {
     }
   }
 
-  async function editTranscriptSegment(segmentId: string, editedText: string) {
+  async function editTranscriptBlock(segmentIds: string[], editedText: string) {
     const meeting = currentMeetingRef.current;
-    const segment = segmentsRef.current.find((item) => item.id === segmentId);
+    const blockSegments = segmentIds
+      .map((segmentId) =>
+        segmentsRef.current.find((item) => item.id === segmentId)
+      )
+      .filter((segment): segment is TranscriptSegment => Boolean(segment));
     const normalizedText = editedText.trim();
+    const currentBlockText = blockSegments
+      .map((segment) => segment.text.trim())
+      .filter(Boolean)
+      .join(" ");
 
-    if (!meeting || !segment || normalizedText === segment.text) {
+    if (
+      !meeting ||
+      blockSegments.length === 0 ||
+      normalizedText === currentBlockText
+    ) {
       return;
     }
 
-    const updatedSegment: TranscriptSegment = {
-      ...segment,
-      text: normalizedText,
-      updatedAt: new Date().toISOString()
-    };
+    const updatedAt = new Date().toISOString();
+    const updatedSegmentById = new Map(
+      blockSegments.map((segment, index) => [
+        segment.id,
+        {
+          ...segment,
+          text: index === 0 ? normalizedText : "",
+          editedText: index === 0 ? normalizedText : "",
+          updatedAt
+        } satisfies TranscriptSegment
+      ])
+    );
     const updatedSegments = segmentsRef.current.map((item) =>
-      item.id === segmentId ? updatedSegment : item
+      updatedSegmentById.get(item.id) ?? item
     );
 
     segmentsRef.current = updatedSegments;
     setSegments(updatedSegments);
-    await putTranscriptSegment(updatedSegment);
+    await Promise.all(
+      [...updatedSegmentById.values()].map((segment) =>
+        putTranscriptSegment(segment)
+      )
+    );
 
     if (shouldUseBackendSync() && meeting.id.startsWith("mtg_")) {
-      await requestJson(
-        `/api/meetings/${meeting.id}/transcript-segments/${segmentId}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({ editedText: normalizedText })
-        }
-      ).catch(() => undefined);
+      await Promise.all(
+        blockSegments.map((segment, index) =>
+          requestJson(
+            `/api/meetings/${meeting.id}/transcript-segments/${segment.id}`,
+            {
+              method: "PATCH",
+              body: JSON.stringify({
+                editedText: index === 0 ? normalizedText : ""
+              })
+            }
+          ).catch(() => undefined)
+        )
+      );
     }
   }
 
@@ -1769,8 +1915,8 @@ export default function MeetingApp() {
               onDownloadAudio={() => void downloadAudio()}
               onDownloadTranscript={() => void downloadTranscript()}
               onEditNoteField={updateNoteField}
-              onEditTranscriptSegment={(segmentId, text) =>
-                void editTranscriptSegment(segmentId, text)
+              onEditTranscriptBlock={(segmentIds, text) =>
+                void editTranscriptBlock(segmentIds, text)
               }
               onRename={(title) => void renameMeeting(title)}
               onSelectedDevice={(id) => setSelectedDeviceId(id)}
@@ -1911,7 +2057,7 @@ function MeetingDocument({
   onDownloadAudio,
   onDownloadTranscript,
   onEditNoteField,
-  onEditTranscriptSegment,
+  onEditTranscriptBlock,
   onRename,
   onRecover,
   onSelectedDevice,
@@ -1940,7 +2086,7 @@ function MeetingDocument({
   onDownloadAudio: () => void;
   onDownloadTranscript: () => void;
   onEditNoteField: (field: keyof NoteFields, value: string) => void;
-  onEditTranscriptSegment: (segmentId: string, text: string) => void;
+  onEditTranscriptBlock: (segmentIds: string[], text: string) => void;
   onRename: (title: string) => void;
   onRecover: () => void;
   onSelectedDevice: (id: string) => void;
@@ -2133,6 +2279,7 @@ function MeetingDocument({
         <>
           <NoteEditor
             fields={noteFields}
+            meetingId={currentMeeting.id}
             onChange={onEditNoteField}
             saveStatus={noteSaveStatus}
           />
@@ -2141,7 +2288,7 @@ function MeetingDocument({
             editable
             emptyText="No transcript was captured."
             heading="Transcript"
-            onEditSegment={onEditTranscriptSegment}
+            onEditBlock={onEditTranscriptBlock}
             segments={segments}
           />
           {showRealtimeDebug ? (
@@ -2190,12 +2337,148 @@ function MeetingDocument({
   );
 }
 
+function LexicalTextEditor({
+  ariaLabel,
+  className,
+  editable = true,
+  editorKey,
+  onChange,
+  onCommit,
+  placeholder,
+  testId,
+  value
+}: {
+  ariaLabel: string;
+  className: string;
+  editable?: boolean;
+  editorKey: string;
+  onChange?: (text: string) => void;
+  onCommit?: (text: string) => void;
+  placeholder: string;
+  testId?: string;
+  value: string;
+}) {
+  const latestTextRef = useRef(value);
+  const lastCommittedTextRef = useRef(value);
+  const commitTimerRef = useRef<number | null>(null);
+
+  const commitText = useCallback(
+    (text: string) => {
+      if (!onCommit || text === lastCommittedTextRef.current) {
+        return;
+      }
+
+      lastCommittedTextRef.current = text;
+      onCommit(text);
+    },
+    [onCommit]
+  );
+
+  const initialEditorState = useCallback(() => {
+    const root = $getRoot();
+    root.clear();
+    const paragraph = $createParagraphNode();
+
+    if (value) {
+      paragraph.append($createTextNode(value));
+    }
+
+    root.append(paragraph);
+  }, [value]);
+
+  const initialConfig = useMemo(
+    () => ({
+      namespace: `meeting-${editorKey}`,
+      editable,
+      editorState: initialEditorState,
+      onError(error: Error) {
+        throw error;
+      },
+      theme: {
+        paragraph: "lexical-paragraph"
+      }
+    }),
+    [editable, editorKey, initialEditorState]
+  );
+
+  const handleEditorChange = useCallback(
+    (editorState: EditorState) => {
+      if (!editable) {
+        return;
+      }
+
+      let nextText = "";
+      editorState.read(() => {
+        nextText = $getRoot().getTextContent();
+      });
+
+      latestTextRef.current = nextText;
+      onChange?.(nextText);
+
+      if (onCommit) {
+        if (commitTimerRef.current) {
+          window.clearTimeout(commitTimerRef.current);
+        }
+
+        commitTimerRef.current = window.setTimeout(() => {
+          commitText(latestTextRef.current);
+        }, 700);
+      }
+    },
+    [commitText, editable, onChange, onCommit]
+  );
+
+  useEffect(
+    () => () => {
+      if (commitTimerRef.current) {
+        window.clearTimeout(commitTimerRef.current);
+      }
+    },
+    []
+  );
+
+  return (
+    <LexicalComposer initialConfig={initialConfig}>
+      <div className="lexical-shell">
+        <PlainTextPlugin
+          contentEditable={
+            <ContentEditable
+              aria-label={ariaLabel}
+              className={className}
+              data-testid={testId}
+              onBlur={() => commitText(latestTextRef.current)}
+              spellCheck
+            />
+          }
+          ErrorBoundary={LexicalErrorBoundary}
+          placeholder={
+            <div className={`${className} lexical-placeholder`}>
+              {placeholder}
+            </div>
+          }
+        />
+        {editable ? (
+          <>
+            <HistoryPlugin />
+            <OnChangePlugin
+              ignoreSelectionChange
+              onChange={handleEditorChange}
+            />
+          </>
+        ) : null}
+      </div>
+    </LexicalComposer>
+  );
+}
+
 function NoteEditor({
   fields,
+  meetingId,
   onChange,
   saveStatus
 }: {
   fields: NoteFields;
+  meetingId: string;
   onChange: (field: keyof NoteFields, value: string) => void;
   saveStatus: string;
 }) {
@@ -2208,38 +2491,47 @@ function NoteEditor({
         </span>
       </div>
 
-      <label className="note-field" data-testid="summary-section">
+      <div className="note-field" data-testid="summary-section">
         <span>Summary</span>
-        <textarea
-          className="note-textarea"
-          data-testid="summary-editor"
-          onChange={(event) => onChange("summary", event.target.value)}
-          rows={3}
+        <LexicalTextEditor
+          ariaLabel="Summary"
+          className="note-lexical-editor"
+          editorKey={`${meetingId}-summary`}
+          key={`${meetingId}-summary`}
+          onChange={(text) => onChange("summary", text)}
+          placeholder={NOTE_PLACEHOLDERS.summary}
+          testId="summary-editor"
           value={fields.summary}
         />
-      </label>
+      </div>
 
-      <label className="note-field" data-testid="action-items-section">
+      <div className="note-field" data-testid="action-items-section">
         <span>Action items</span>
-        <textarea
-          className="note-textarea"
-          data-testid="action-items-editor"
-          onChange={(event) => onChange("actionItems", event.target.value)}
-          rows={3}
+        <LexicalTextEditor
+          ariaLabel="Action items"
+          className="note-lexical-editor"
+          editorKey={`${meetingId}-action-items`}
+          key={`${meetingId}-action-items`}
+          onChange={(text) => onChange("actionItems", text)}
+          placeholder={NOTE_PLACEHOLDERS.actionItems}
+          testId="action-items-editor"
           value={fields.actionItems}
         />
-      </label>
+      </div>
 
-      <label className="note-field">
+      <div className="note-field">
         <span>Notes</span>
-        <textarea
-          className="note-textarea"
-          data-testid="notes-editor"
-          onChange={(event) => onChange("notes", event.target.value)}
-          rows={5}
+        <LexicalTextEditor
+          ariaLabel="Notes"
+          className="note-lexical-editor"
+          editorKey={`${meetingId}-notes`}
+          key={`${meetingId}-notes`}
+          onChange={(text) => onChange("notes", text)}
+          placeholder={NOTE_PLACEHOLDERS.notes}
+          testId="notes-editor"
           value={fields.notes}
         />
-      </label>
+      </div>
     </section>
   );
 }
@@ -2308,48 +2600,62 @@ function TranscriptSection({
   endRef,
   emptyText,
   heading,
-  onEditSegment,
+  onEditBlock,
   segments
 }: {
   editable?: boolean;
   endRef?: RefObject<HTMLDivElement | null>;
   emptyText: string;
   heading: string;
-  onEditSegment?: (segmentId: string, text: string) => void;
+  onEditBlock?: (segmentIds: string[], text: string) => void;
   segments: TranscriptSegment[];
 }) {
+  const blocks = useMemo(() => buildTranscriptBlocks(segments), [segments]);
+
   return (
     <section className="section">
       <h2>{heading}</h2>
       <div className="transcript" data-testid="live-transcript">
-        {segments.length === 0 ? (
+        {blocks.length === 0 ? (
           <div className="empty-transcript">{emptyText}</div>
         ) : (
-          segments.map((segment) => (
-            <p
-              className={`transcript-segment ${
-                segment.isFinal ? "final" : "provisional"
+          blocks.map((block) => (
+            <div
+              className={`transcript-block transcript-segment ${
+                block.isFinal ? "final" : "provisional"
               }`}
+              data-segment-ids={block.segmentIds.join(",")}
               data-testid="transcript-segment"
-              key={segment.id}
+              data-transcript-block-id={block.id}
+              key={block.id}
             >
-              <span className="segment-time">
-                {formatTimer(Math.floor((segment.startMs ?? 0) / 1000))}
-              </span>
               <span
-                className="transcript-text"
-                contentEditable={editable}
-                data-testid={editable ? "transcript-segment-editor" : undefined}
-                onBlur={(event) =>
-                  onEditSegment?.(segment.id, event.currentTarget.textContent ?? "")
-                }
-                role={editable ? "textbox" : undefined}
-                suppressContentEditableWarning
-                tabIndex={editable ? 0 : undefined}
+                aria-hidden="true"
+                className="segment-time transcript-timestamp"
+                data-testid="transcript-timestamp"
               >
-                {segment.text}
+                {formatTimer(Math.floor((block.startMs ?? 0) / 1000))}
               </span>
-            </p>
+              <LexicalTextEditor
+                ariaLabel="Transcript paragraph"
+                className="transcript-lexical-editor"
+                editable={editable}
+                editorKey={
+                  editable
+                    ? `transcript-${block.id}`
+                    : `transcript-${block.id}-${block.text}`
+                }
+                key={
+                  editable
+                    ? `transcript-${block.id}`
+                    : `transcript-${block.id}-${block.text}`
+                }
+                onCommit={(text) => onEditBlock?.(block.segmentIds, text)}
+                placeholder=""
+                testId={editable ? "transcript-segment-editor" : undefined}
+                value={block.text}
+              />
+            </div>
           ))
         )}
         {endRef ? <div ref={endRef} className="transcript-end" /> : null}

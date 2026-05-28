@@ -21,6 +21,8 @@ export type TranscriptSegment = {
   startMs?: number;
   endMs?: number;
   text: string;
+  rawText?: string;
+  editedText?: string | null;
   isFinal: boolean;
   createdAt: string;
   updatedAt: string;

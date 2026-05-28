@@ -12,7 +12,9 @@
     "test:agent-browser": "bash scripts/agent-browser-tests.sh"
   },
   "dependencies": {
+    "@lexical/react": "^0.44.0",
     "google-auth-library": "^10.6.2",
+    "lexical": "^0.44.0",
     "lucide-react": "latest",
     "next": "latest",
     "pg": "^8.21.0",

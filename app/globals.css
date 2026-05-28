@@ -635,10 +635,14 @@ button:disabled {
   font-weight: 600;
 }
 
-.note-textarea {
+.lexical-shell {
+  position: relative;
+  min-width: 0;
+}
+
+.note-lexical-editor {
   width: 100%;
   min-height: 82px;
-  resize: vertical;
   border: 1px solid transparent;
   border-radius: 6px;
   background: #fbfbfa;
@@ -648,11 +652,19 @@ button:disabled {
   font-size: 15px;
   line-height: 1.55;
   outline: none;
+  white-space: pre-wrap;
 }
 
-.note-textarea:focus {
+.note-lexical-editor:focus {
   border-color: var(--border-strong);
   background: #fff;
+}
+
+.note-lexical-editor.lexical-placeholder {
+  position: absolute;
+  inset: 0;
+  color: #b8b6b1;
+  pointer-events: none;
 }
 
 .section-body {
@@ -663,54 +675,59 @@ button:disabled {
 }
 
 .transcript {
-  display: grid;
-  gap: 6px;
-  margin-top: 14px;
+  margin-top: 16px;
 }
 
 .transcript-end {
   min-height: 1px;
 }
 
-.transcript-segment {
-  display: grid;
-  grid-template-columns: 48px 1fr;
-  gap: 10px;
-  margin: 0;
-  padding: 4px 0;
+.transcript-block {
+  position: relative;
+  margin: 12px 0;
+  padding: 2px 0;
   color: var(--text-primary);
   font-size: 15px;
   line-height: 1.65;
 }
 
-.transcript-segment.provisional {
+.transcript-block.provisional {
   color: var(--text-tertiary);
 }
 
-.transcript-text {
+.transcript-lexical-editor {
   min-width: 0;
   border-radius: 4px;
   outline: none;
+  white-space: pre-wrap;
 }
 
-.transcript-text[contenteditable="true"] {
-  padding: 1px 3px;
-}
-
-.transcript-text[contenteditable="true"]:focus {
+.transcript-lexical-editor:focus {
   background: #fbfbfa;
   box-shadow: 0 0 0 1px var(--border-strong);
 }
 
+.transcript-lexical-editor.lexical-placeholder {
+  position: absolute;
+  inset: 0;
+  color: #b8b6b1;
+  pointer-events: none;
+}
+
 .segment-time {
+  position: absolute;
+  top: 6px;
+  left: -64px;
   color: var(--text-tertiary);
   font-size: 12px;
-  line-height: 2.1;
-  opacity: 1;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  opacity: 0;
   transition: opacity 120ms ease;
 }
 
-.transcript-segment:hover .segment-time {
+.transcript-block:hover .segment-time,
+.transcript-block:focus-within .segment-time {
   opacity: 1;
 }
 
@@ -960,12 +977,12 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
-  .transcript-segment {
-    grid-template-columns: 1fr;
-    gap: 0;
+  .transcript-block {
+    padding-left: 50px;
   }
 
   .segment-time {
-    opacity: 1;
+    left: 0;
+    opacity: 0.55;
   }
 }

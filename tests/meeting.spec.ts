@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+const MOCK_TRANSCRIPT_SEGMENTS_LENGTH = 4;
+
 test("real UI creates and renames a backend meeting", async ({
   page,
   request
@@ -217,6 +219,9 @@ test("saved backend meetings autosave notes and transcript corrections", async (
   await page.goto("/");
   await page.getByTestId("meeting-list").getByText(title).click();
   await expect(page.getByTestId("summary-editor")).toBeVisible();
+  await expect(page.getByText("Click to add summary...")).toBeVisible();
+  await expect(page.getByText("Click to add action items...")).toBeVisible();
+  await expect(page.getByText("Click to add notes...")).toBeVisible();
 
   await page.getByTestId("summary-editor").fill("Decision summary");
   await page.getByTestId("action-items-editor").fill("Follow up with Jane");
@@ -248,6 +253,47 @@ test("saved backend meetings autosave notes and transcript corrections", async (
       return detail.transcriptSegments[0].editedText;
     })
     .toBe("Corrected transcript paragraph.");
+});
+
+test("transcript reads like document blocks with quiet timestamps", async ({
+  page
+}) => {
+  await page.goto("/?e2e=1&mockMic=1&mockTranscription=1");
+
+  await page.getByTestId("new-meeting-button").click();
+  await page.getByTestId("start-recording-button").click();
+
+  await expect(page.getByTestId("live-transcript")).toContainText(
+    "Action item: follow up with the customer tomorrow."
+  );
+
+  const blockCount = await page.getByTestId("transcript-segment").count();
+  expect(blockCount).toBeGreaterThan(0);
+  expect(blockCount).toBeLessThan(MOCK_TRANSCRIPT_SEGMENTS_LENGTH);
+
+  await expect
+    .poll(async () =>
+      Number(
+        await page
+          .getByTestId("transcript-timestamp")
+          .first()
+          .evaluate((element) => getComputedStyle(element).opacity)
+      )
+    )
+    .toBe(0);
+
+  await page.getByTestId("transcript-segment").first().hover();
+
+  await expect
+    .poll(async () =>
+      Number(
+        await page
+          .getByTestId("transcript-timestamp")
+          .first()
+          .evaluate((element) => getComputedStyle(element).opacity)
+      )
+    )
+    .toBeGreaterThan(0.9);
 });
 
 test("user can record, see transcript, stop, and save meeting", async ({

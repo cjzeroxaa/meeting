@@ -28,7 +28,7 @@ export function createInitialNoteDocument(title: string): NoteDocumentContent {
       },
       {
         type: "paragraph",
-        content: [{ type: "text", text: "No summary generated yet." }]
+        content: []
       },
       {
         type: "heading",
@@ -37,7 +37,7 @@ export function createInitialNoteDocument(title: string): NoteDocumentContent {
       },
       {
         type: "paragraph",
-        content: [{ type: "text", text: "No action items yet." }]
+        content: []
       }
     ]
   };
