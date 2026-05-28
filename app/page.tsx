@@ -7,6 +7,7 @@ import {
   type EditorState
 } from "lexical";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
@@ -1584,7 +1585,10 @@ export default function MeetingApp() {
         status: "generated";
         noteDocument: NoteDocumentState;
       }>(`/api/meetings/${meeting.id}/generate-note`, {
-        method: "POST"
+        method: "POST",
+        headers: isE2EFlag("mockSummary")
+          ? { "x-meeting-summary-mock": "1" }
+          : undefined
       });
 
       setNoteDocument(response.noteDocument);
@@ -2408,6 +2412,7 @@ function LexicalTextEditor({
 }) {
   const latestTextRef = useRef(value);
   const lastCommittedTextRef = useRef(value);
+  const syncingExternalValueRef = useRef(false);
   const commitTimerRef = useRef<number | null>(null);
 
   const commitText = useCallback(
@@ -2451,7 +2456,7 @@ function LexicalTextEditor({
 
   const handleEditorChange = useCallback(
     (editorState: EditorState) => {
-      if (!editable) {
+      if (!editable || syncingExternalValueRef.current) {
         return;
       }
 
@@ -2505,6 +2510,12 @@ function LexicalTextEditor({
             </div>
           }
         />
+        <ExternalValuePlugin
+          lastCommittedTextRef={lastCommittedTextRef}
+          latestTextRef={latestTextRef}
+          syncingExternalValueRef={syncingExternalValueRef}
+          value={value}
+        />
         {editable ? (
           <>
             <HistoryPlugin />
@@ -2517,6 +2528,60 @@ function LexicalTextEditor({
       </div>
     </LexicalComposer>
   );
+}
+
+function ExternalValuePlugin({
+  lastCommittedTextRef,
+  latestTextRef,
+  syncingExternalValueRef,
+  value
+}: {
+  lastCommittedTextRef: RefObject<string>;
+  latestTextRef: RefObject<string>;
+  syncingExternalValueRef: RefObject<boolean>;
+  value: string;
+}) {
+  const [editor] = useLexicalComposerContext();
+  const lastExternalValueRef = useRef(value);
+
+  useEffect(() => {
+    if (lastExternalValueRef.current === value) {
+      return;
+    }
+
+    lastExternalValueRef.current = value;
+
+    let currentText = "";
+    editor.getEditorState().read(() => {
+      currentText = $getRoot().getTextContent();
+    });
+
+    latestTextRef.current = value;
+    lastCommittedTextRef.current = value;
+
+    if (currentText === value) {
+      return;
+    }
+
+    syncingExternalValueRef.current = true;
+    editor.update(() => {
+      const root = $getRoot();
+      root.clear();
+      const paragraph = $createParagraphNode();
+
+      if (value) {
+        paragraph.append($createTextNode(value));
+      }
+
+      root.append(paragraph);
+    });
+
+    window.setTimeout(() => {
+      syncingExternalValueRef.current = false;
+    }, 0);
+  }, [editor, lastCommittedTextRef, latestTextRef, syncingExternalValueRef, value]);
+
+  return null;
 }
 
 function NoteEditor({
