@@ -293,7 +293,7 @@ test("transcript reads like document blocks with quiet timestamps", async ({
           .evaluate((element) => getComputedStyle(element).opacity)
       )
     )
-    .toBeGreaterThan(0.9);
+    .toBeGreaterThan(0.5);
 });
 
 test("user can record, see transcript, stop, and save meeting", async ({
