@@ -118,6 +118,6 @@ gcloud run deploy "${SERVICE_NAME}" \
   --source . \
   --service-account "${RUN_SERVICE_ACCOUNT}" \
   --add-cloudsql-instances "${INSTANCE_CONNECTION_NAME}" \
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},AUDIO_BUCKET_NAME=${AUDIO_BUCKET_NAME},GCS_SIGNING_SERVICE_ACCOUNT=${GCS_SIGNING_SERVICE_ACCOUNT},MEETING_APP_USER_ID=${MEETING_APP_USER_ID:-app_user},MEETING_APP_USER_NAME=${MEETING_APP_USER_NAME:-Meeting User}" \
+  --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},AUDIO_BUCKET_NAME=${AUDIO_BUCKET_NAME},GCS_SIGNING_SERVICE_ACCOUNT=${GCS_SIGNING_SERVICE_ACCOUNT},MEETING_APP_USER_ID=${MEETING_APP_USER_ID:-app_user},MEETING_APP_USER_NAME=${MEETING_APP_USER_NAME:-Meeting User},OPENAI_SUMMARY_MODEL=${OPENAI_SUMMARY_MODEL:-gpt-5.5}" \
   --set-secrets "DATABASE_URL=meeting-v2-database-url:latest,OPENAI_API_KEY=meeting-v2-openai-api-key:latest,MEETING_AUTH_SECRET=meeting-v2-auth-secret:latest,MEETING_APP_PASSWORD=meeting-v2-app-password:latest" \
   --allow-unauthenticated

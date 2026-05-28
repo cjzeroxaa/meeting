@@ -185,6 +185,26 @@ test("v2 backend meeting lifecycle uses postgres", async ({ request }) => {
   expect(stopResponse.status()).toBe(200);
   expect((await stopResponse.json()).status).toBe("saved");
 
+  const generateNoteResponse = await request.post(
+    `/api/meetings/${meetingId}/generate-note`,
+    {
+      headers: {
+        ...headers,
+        "x-meeting-summary-mock": "1"
+      }
+    }
+  );
+  expect(generateNoteResponse.status()).toBe(200);
+  const generatedNote = await generateNoteResponse.json();
+  expect(generatedNote.status).toBe("generated");
+  expect(generatedNote.model).toBe("mock");
+  expect(generatedNote.noteDocument.contentText).toContain(
+    "Generated summary for Customer Interview API"
+  );
+  expect(generatedNote.noteDocument.contentText).toContain(
+    "Hello from the edited transcript."
+  );
+
   const revisionsResponse = await request.get(
     `/api/meetings/${meetingId}/note-document/revisions`,
     { headers }
@@ -195,6 +215,12 @@ test("v2 backend meeting lifecycle uses postgres", async ({ request }) => {
     revisions.revisions.some(
       (revision: { changeSource: string }) =>
         revision.changeSource === "recording_stop"
+    )
+  ).toBe(true);
+  expect(
+    revisions.revisions.some(
+      (revision: { changeSource: string }) =>
+        revision.changeSource === "summary_generation"
     )
   ).toBe(true);
 

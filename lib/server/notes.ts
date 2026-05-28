@@ -3,44 +3,66 @@ export type NoteDocumentContent = {
   content: unknown[];
 };
 
-export function createInitialNoteDocument(title: string): NoteDocumentContent {
+export type NoteFields = {
+  summary: string;
+  actionItems: string;
+  notes: string;
+};
+
+function textBlock(text: string) {
+  return {
+    type: "paragraph",
+    content: text ? [{ type: "text", text }] : []
+  };
+}
+
+function headingBlock(text: string, level: number) {
+  return {
+    type: "heading",
+    attrs: { level },
+    content: [{ type: "text", text }]
+  };
+}
+
+export function buildNoteDocumentContent(
+  title: string,
+  fields: NoteFields
+): NoteDocumentContent {
   return {
     type: "doc",
     content: [
-      {
-        type: "heading",
-        attrs: { level: 1 },
-        content: [{ type: "text", text: title || "Untitled meeting" }]
-      },
-      {
-        type: "paragraph",
-        content: [
-          {
-            type: "text",
-            text: "This browser version records your selected microphone."
-          }
-        ]
-      },
-      {
-        type: "heading",
-        attrs: { level: 2 },
-        content: [{ type: "text", text: "Summary" }]
-      },
-      {
-        type: "paragraph",
-        content: []
-      },
-      {
-        type: "heading",
-        attrs: { level: 2 },
-        content: [{ type: "text", text: "Action items" }]
-      },
-      {
-        type: "paragraph",
-        content: []
-      }
+      headingBlock(title.trim() || "Untitled meeting", 1),
+      textBlock("This browser version records your selected microphone."),
+      headingBlock("Summary", 2),
+      textBlock(fields.summary.trim()),
+      headingBlock("Action items", 2),
+      textBlock(fields.actionItems.trim()),
+      headingBlock("Notes", 2),
+      textBlock(fields.notes.trim())
     ]
   };
+}
+
+export function noteFieldsToContentText(title: string, fields: NoteFields) {
+  return [
+    title.trim() || "Untitled meeting",
+    "Summary",
+    fields.summary.trim(),
+    "Action items",
+    fields.actionItems.trim(),
+    "Notes",
+    fields.notes.trim()
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export function createInitialNoteDocument(title: string): NoteDocumentContent {
+  return buildNoteDocumentContent(title, {
+    summary: "",
+    actionItems: "",
+    notes: ""
+  });
 }
 
 export function extractContentText(value: unknown): string {

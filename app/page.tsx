@@ -397,6 +397,16 @@ function noteFieldsToText(title: string, fields: NoteFields) {
     .join("\n");
 }
 
+function hasTranscriptText(segments: TranscriptSegment[]) {
+  return segments.some((segment) =>
+    Boolean(
+      segment.text.trim() ||
+        segment.editedText?.trim() ||
+        segment.rawText?.trim()
+    )
+  );
+}
+
 function hasEditedSegment(segment: TranscriptSegment) {
   return segment.editedText !== undefined && segment.editedText !== null;
 }
@@ -1562,6 +1572,35 @@ export default function MeetingApp() {
     };
   }
 
+  async function generateFinishedMeetingNotes(meeting: StoredMeeting) {
+    if (!hasTranscriptText(segmentsRef.current)) {
+      return;
+    }
+
+    setNoteSaveStatus("Generating notes...");
+
+    try {
+      const response = await requestJson<{
+        status: "generated";
+        noteDocument: NoteDocumentState;
+      }>(`/api/meetings/${meeting.id}/generate-note`, {
+        method: "POST"
+      });
+
+      setNoteDocument(response.noteDocument);
+      setNoteFields(fieldsFromNoteDocument(response.noteDocument));
+      await deleteNoteDraft(meeting.id).catch(() => undefined);
+      setNoteSaveStatus("Notes generated");
+    } catch (error) {
+      if (error instanceof RequestJsonError && error.status === 422) {
+        setNoteSaveStatus("");
+        return;
+      }
+
+      setNoteSaveStatus("Could not generate notes");
+    }
+  }
+
   async function stopRecording(limitReached = false) {
     const meeting = currentMeetingRef.current;
 
@@ -1598,12 +1637,13 @@ export default function MeetingApp() {
     await flushPendingTranscriptSync();
 
     if (shouldUseBackendSync() && savedMeeting.id.startsWith("mtg_")) {
-      await requestJson(`/api/meetings/${savedMeeting.id}/stop`, {
+      const stopSynced = await requestJson(`/api/meetings/${savedMeeting.id}/stop`, {
         method: "POST",
         body: JSON.stringify({
           endedAt: savedMeeting.endedAt,
           durationSeconds: Math.floor(durationMs / 1000),
-          transcriptStatus: segmentsRef.current.length > 0 ? "complete" : "partial"
+          transcriptStatus:
+            segmentsRef.current.length > 0 ? "complete" : "partial"
         })
       })
         .then(async () => {
@@ -1613,15 +1653,23 @@ export default function MeetingApp() {
 
           if (latestNote) {
             setNoteDocument(latestNote);
+            setNoteFields(fieldsFromNoteDocument(latestNote));
           }
-        })
-        .catch(() => undefined);
 
-      await uploadMeetingAudio(savedMeeting, durationMs).catch(() => {
-        setSaveStatus(
-          "Meeting saved. Audio upload failed; local audio is still available."
-        );
-      });
+          return true;
+        })
+        .catch(() => false);
+
+      if (stopSynced) {
+        await Promise.allSettled([
+          generateFinishedMeetingNotes(savedMeeting),
+          uploadMeetingAudio(savedMeeting, durationMs).catch(() => {
+            setSaveStatus(
+              "Meeting saved. Audio upload failed; local audio is still available."
+            );
+          })
+        ]);
+      }
     }
 
     const latestMeeting = currentMeetingRef.current;

@@ -372,7 +372,8 @@ export async function updateNoteDocument({
   expectedVersion,
   contentJson,
   contentText,
-  editedBy
+  editedBy,
+  changeSource = "user"
 }: {
   meetingId: string;
   ownerUserId: string;
@@ -380,6 +381,7 @@ export async function updateNoteDocument({
   contentJson: NoteDocumentContent;
   contentText: string;
   editedBy: string;
+  changeSource?: string;
 }) {
   return withTransaction(async (client) => {
     const owned = await assertMeetingOwner(client, meetingId, ownerUserId);
@@ -429,7 +431,7 @@ export async function updateNoteDocument({
           edited_by,
           change_source
         )
-        VALUES ($1, $2, $3, $4, $5, $6, 'user')
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         ON CONFLICT (note_document_id, version) DO NOTHING
       `,
       [
@@ -438,7 +440,8 @@ export async function updateNoteDocument({
         document.version,
         contentJson,
         contentText,
-        editedBy
+        editedBy,
+        changeSource
       ]
     );
 
